@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BLACKRISE - Premium Store</title>
+
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Fonte Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --card-bg: #161a22;
+      --accent: #e50914;
+      --accent-hover: #b80710;
+      --text: #f0f3f8;
+      --muted: #8b949e;
+      --border: #30363d;
+      --success: #238636;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding-bottom: 60px; }
+
+    /* Header */
+    header {
+      background: rgba(13, 15, 18, 0.95);
+      backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .logo { font-size: 1.5rem; font-weight: 700; letter-spacing: 2px; color: #fff; text-transform: uppercase; }
+    .logo span { color: var(--accent); }
+
+    .nav-actions { display: flex; gap: 1rem; align-items: center; }
+    .btn {
+      background: var(--accent); color: white; border: none; padding: 0.6rem 1.2rem;
+      border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary { background: #21262d; border: 1px solid var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #30363d; }
+    .btn-danger { background: #da3633; color: white; border: none; }
+    .btn-danger:hover { background: #b82a28; }
+    .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+
+    /* Layout */
+    .container { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+
+    .status-bar {
+      background: #1c2128; border: 1px solid var(--border); padding: 0.8rem 1rem;
+      border-radius: 8px; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .status-badge { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #e3b341; }
+    .dot.connected { background: #3fb950; }
+
+    /* Grid de Produtos */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }
+    .card {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between;
+      transition: transform 0.2s;
+    }
+    .card:hover { transform: translateY(-4px); }
+    .card-icon { font-size: 2.5rem; margin-bottom: 1rem; text-align: center; }
+    .card-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .card-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 1rem; flex-grow: 1; }
+    .card-price { font-size: 1.3rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+    
+    .stock-tag { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; width: fit-content; margin-bottom: 1rem; }
+    .stock-ok { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+    .stock-out { background: rgba(248, 81, 73, 0.15); color: #f85149; }
+
+    /* Painel do Vendedor */
+    .admin-section { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-top: 3rem; }
+    .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+
+    .table-responsive { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; text-align: left; min-width: 500px; }
+    th, td { padding: 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    th { color: var(--muted); }
+
+    input, textarea {
+      width: 100%; padding: 0.6rem; background: #0d0f12; border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); margin-top: 0.4rem; margin-bottom: 1rem;
+    }
+
+    /* Modal Checkout e Login */
+    .modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); z-index: 200; justify-content: center; align-items: center;
+    }
+    .modal.active { display: flex; }
+    .modal-content { background: var(--card-bg); border: 1px solid var(--border); width: 90%; max-width: 480px; border-radius: 12px; padding: 1.5rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">BLACK<span>RISE</span></div>
+    <div class="nav-actions">
+      <button class="btn btn-secondary" onclick="solicitarAcessoAdmin()">Painel Vendedor</button>
+      <button class="btn" onclick="abrirCarrinho()">Carrinho (<span id="cart-count">0</span>)</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Status da Conexão -->
+    <div class="status-bar">
+      <div class="status-badge">
+        <div class="dot" id="db-dot"></div>
+        <span id="db-status">Conectando ao Supabase...</span>
+      </div>
+      <span style="color: var(--muted)">Modo: <strong style="color:#fff">Sincronização em Tempo Real</strong></span>
+    </div>
+
+    <!-- VISÃO DO CLIENTE -->
+    <h2 style="margin-bottom: 1.5rem;">Catálogo de Produtos</h2>
+    <div class="grid" id="produtos-container">
+      <p style="color: var(--muted)">Carregando produtos...</p>
+    </div>
+
+    <!-- VISÃO DO VENDEDOR (ADMIN) -->
+    <div class="admin-section" id="admin-panel" style="display: none;">
+      <div class="admin-header">
+        <h2>Painel do Vendedor (BLACKRISE)</h2>
+        <div>
+          <button class="btn btn-secondary btn-sm" onclick="alternarFormNovoProduto()">+ Novo Produto</button>
+          <button class="btn btn-danger btn-sm" onclick="fecharAdmin()">Sair do Painel</button>
+        </div>
+      </div>
+
+      <!-- Form para Criar Novo Produto -->
+      <div id="form-novo-produto" style="display: none; background: #0d0f12; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+        <h3>Cadastrar Novo Produto</h3>
+        <input type="text" id="p-nome" placeholder="Nome do Produto (ex: Camiseta Oversized)">
+        <input type="number" id="p-preco" placeholder="Preço (R$)" step="0.01">
+        <input type="number" id="p-estoque" placeholder="Estoque Inicial">
+        <input type="text" id="p-icone" placeholder="Ícone Emoji (ex: 👕, 🏎️, 🧢)">
+        <textarea id="p-desc" placeholder="Descrição curta do produto"></textarea>
+        <button class="btn" onclick="salvarNovoProduto()">Salvar Produto</button>
+      </div>
+
+      <h3>Gerenciar Estoque</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>Preço</th>
+              <th>Estoque</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-admin-body">
+            <!-- Renderizado via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top: 2rem;">Pedidos e Leads de Clientes</h3>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>WhatsApp</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-clientes-body">
+            <!-- Renderizado via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE AUTENTICAÇÃO DO VENDEDOR -->
+  <div class="modal" id="login-modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom: 1rem;">Acesso do Vendedor</h3>
+      <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1rem;">Digite suas credenciais administrativas para acessar o painel de gestão.</p>
+      
+      <input type="text" id="admin-user" placeholder="Usuário">
+      <input type="password" id="admin-pass" placeholder="Senha">
+
+      <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+        <button class="btn btn-secondary" style="flex: 1" onclick="fecharModalLogin()">Cancelar</button>
+        <button class="btn" style="flex: 1" onclick="validarLoginAdmin()">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DO CARRINHO / CHECKOUT -->
+  <div class="modal" id="cart-modal">
+    <div class="modal-content">
+      <h3 style="margin-bottom: 1rem;">Finalizar Compra</h3>
+      <div id="cart-items" style="margin-bottom: 1rem; max-height: 150px; overflow-y: auto;"></div>
+      <div style="display:flex; justify-content:space-between; margin-bottom: 1rem; font-weight:bold;">
+        <span>Total:</span>
+        <span id="cart-total">R$ 0,00</span>
+      </div>
+      <hr style="border-color: var(--border); margin-bottom: 1rem;">
+      
+      <h4>Seus Dados para o Pedido</h4>
+      <input type="text" id="c-nome" placeholder="Seu Nome Completo">
+      <input type="email" id="c-email" placeholder="Seu E-mail">
+      <input type="tel" id="c-tel" placeholder="Seu WhatsApp/Telefone">
+
+      <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+        <button class="btn btn-secondary" style="flex: 1" onclick="fecharCarrinho()">Cancelar</button>
+        <button class="btn" style="flex: 1" onclick="finalizarPedido()">Confirmar Pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. CREDENCIAIS E CONEXÃO COM O SUPABASE
+    // =========================================================================
+    const SUPABASE_URL = "https://SEU_PROJETO.supabase.co"; 
+    const SUPABASE_KEY = "SUA_CHAVE_ANON_KEY"; 
+
+    // Credenciais do Painel Admin
+    const ADMIN_USER = "blackrisefit2026";
+    const ADMIN_PASS = "060624";
+
+    let db = null;
+    let produtos = [];
+    let clientes = [];
+    let carrinho = [];
+
+    // Inicialização do Banco
+    if (SUPABASE_URL !== "https://SEU_PROJETO.supabase.co") {
+      db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      document.getElementById('db-dot').classList.add('connected');
+      document.getElementById('db-status').innerText = 'Conectado ao Supabase (Online)';
+      carregarDados();
+    } else {
+      document.getElementById('db-status').innerText = 'Modo de Teste (Configure as chaves do Supabase)';
+      produtos = [
+        { id: 1, nome: "Camiseta BLACKRISE Oversized", preco: 129.90, estoque: 10, icone: "👕", descricao: "Algodão pesado premium 260g." },
+        { id: 2, nome: "Regata Cavas Profundas", preco: 89.90, estoque: 5, icone: "🎽", descricao: "Caimento perfeito para treinos intensos." }
+      ];
+      renderizarProdutos();
+      renderizarTabelaAdmin();
+    }
+
+    // =========================================================================
+    // 2. BUSCA DE DADOS EM TEMPO REAL
+    // =========================================================================
+    async function carregarDados() {
+      await Promise.all([carregarProdutos(), carregarClientes()]);
+      iniciarSincronizacaoRealtime();
+    }
+
+    async function carregarProdutos() {
+      if (!db) return;
+      const { data, error } = await db.from('produtos').select('*').order('id', { ascending: true });
+      if (!error && data) {
+        produtos = data;
+        renderizarProdutos();
+        renderizarTabelaAdmin();
+      }
+    }
+
+    async function carregarClientes() {
+      if (!db) return;
+      const { data, error } = await db.from('clientes').select('*').order('created_at', { ascending: false });
+      if (!error && data) {
+        clientes = data;
+        renderizarClientesAdmin();
+      }
+    }
+
+    function iniciarSincronizacaoRealtime() {
+      if (!db) return;
+
+      db.channel('realtime-produtos')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'produtos' }, () => carregarProdutos())
+        .subscribe();
+
+      db.channel('realtime-clientes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'clientes' }, () => carregarClientes())
+        .subscribe();
+    }
+
+    // =========================================================================
+    // 3. RENDERIZAÇÃO DA INTERFACE (LOJA + PAINEL)
+    // =========================================================================
+    function renderizarProdutos() {
+      const container = document.getElementById('produtos-container');
+      if (produtos.length === 0) {
+        container.innerHTML = '<p style="color: var(--muted)">Nenhum produto cadastrado no momento.</p>';
+        return;
+      }
+
+      container.innerHTML = produtos.map(p => `
+        <div class="card">
+          <div class="card-icon">${p.icone || '📦'}</div>
+          <div class="card-title">${p.nome}</div>
+          <div class="card-desc">${p.descricao || ''}</div>
+          <div class="card-price">R$ ${Number(p.preco).toFixed(2)}</div>
+          <div class="stock-tag ${p.estoque > 0 ? 'stock-ok' : 'stock-out'}">
+            ${p.estoque > 0 ? `Estoque: ${p.estoque} un` : 'Esgotado'}
+          </div>
+          <button class="btn" ${p.estoque <= 0 ? 'disabled style="opacity:0.5; cursor:not-allowed"' : ''} onclick="adicionarAoCarrinho(${p.id})">
+            ${p.estoque > 0 ? 'Adicionar ao Carrinho' : 'Indisponível'}
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function renderizarTabelaAdmin() {
+      const tbody = document.getElementById('tabela-admin-body');
+      tbody.innerHTML = produtos.map(p => `
+        <tr>
+          <td>${p.icone || '📦'} <strong>${p.nome}</strong></td>
+          <td>R$ ${Number(p.preco).toFixed(2)}</td>
+          <td><strong>${p.estoque}</strong></td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="alterarEstoque(${p.id}, 1)">+1</button>
+            <button class="btn btn-secondary btn-sm" onclick="alterarEstoque(${p.id}, -1)">-1</button>
+            <button class="btn btn-danger btn-sm" onclick="excluirProduto(${p.id})">Excluir</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderizarClientesAdmin() {
+      const tbody = document.getElementById('tabela-clientes-body');
+      tbody.innerHTML = clientes.map(c => `
+        <tr>
+          <td>${new Date(c.created_at || Date.now()).toLocaleDateString('pt-BR')}</td>
+          <td><strong>${c.nome}</strong></td>
+          <td>${c.email}</td>
+          <td>${c.tel || 'Não informado'}</td>
+        </tr>
+      `).join('');
+    }
+
+    // =========================================================================
+    // 4. AÇÕES DO PAINEL DO VENDEDOR
+    // =========================================================================
+    function solicitarAcessoAdmin() {
+      document.getElementById('login-modal').classList.add('active');
+    }
+
+    function fecharModalLogin() {
+      document.getElementById('login-modal').classList.remove('active');
+    }
+
+    function validarLoginAdmin() {
+      const u = document.getElementById('admin-user').value;
+      const p = document.getElementById('admin-pass').value;
+
+      if (u === ADMIN_USER && p === ADMIN_PASS) {
+        fecharModalLogin();
+        document.getElementById('admin-panel').style.display = 'block';
+        window.scrollTo({ top: document.getElementById('admin-panel').offsetTop - 80, behavior: 'smooth' });
+      } else {
+        alert("Usuário ou senha incorretos!");
+      }
+    }
+
+    function fecharAdmin() {
+      document.getElementById('admin-panel').style.display = 'none';
+    }
+
+    function alternarFormNovoProduto() {
+      const f = document.getElementById('form-novo-produto');
+      f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function salvarNovoProduto() {
+      const nome = document.getElementById('p-nome').value;
+      const preco = parseFloat(document.getElementById('p-preco').value);
+      const estoque = parseInt(document.getElementById('p-estoque').value) || 0;
+      const icone = document.getElementById('p-icone').value || '📦';
+      const descricao = document.getElementById('p-desc').value;
+
+      if (!nome || isNaN(preco)) return alert("Informe nome e preço válidos.");
+
+      if (db) {
+        const { error } = await db.from('produtos').insert([{ nome, preco, estoque, icone, descricao }]);
+        if (error) alert("Erro ao cadastrar: " + error.message);
+        else {
+          alert("Produto cadastrado com sucesso!");
+          document.getElementById('form-novo-produto').style.display = 'none';
+        }
+      } else {
+        produtos.push({ id: Date.now(), nome, preco, estoque, icone, descricao });
+        renderizarProdutos();
+        renderizarTabelaAdmin();
+        document.getElementById('form-novo-produto').style.display = 'none';
+      }
+    }
+
+    async function alterarEstoque(id, delta) {
+      const prod = produtos.find(p => p.id === id);
+      if (!prod) return;
+
+      const novoEstoque = Math.max(0, prod.estoque + delta);
+
+      if (db) {
+        await db.from('produtos').update({ estoque: novoEstoque }).eq('id', id);
+      } else {
+        prod.estoque = novoEstoque;
+        renderizarProdutos();
+        renderizarTabelaAdmin();
+      }
+    }
+
+    async function excluirProduto(id) {
+      if (!confirm("Deseja realmente apagar este produto?")) return;
+
+      if (db) {
+        await db.from('produtos').delete().eq('id', id);
+      } else {
+        produtos = produtos.filter(p => p.id !== id);
+        renderizarProdutos();
+        renderizarTabelaAdmin();
+      }
+    }
+
+    // =========================================================================
+    // 5. AÇÕES DO CLIENTE E CHECKOUT
+    // =========================================================================
+    function adicionarAoCarrinho(id) {
+      const prod = produtos.find(p => p.id === id);
+      if (prod && prod.estoque > 0) {
+        carrinho.push(prod);
+        atualizarContadorCarrinho();
+      }
+    }
+
+    function atualizarContadorCarrinho() {
+      document.getElementById('cart-count').innerText = carrinho.length;
+    }
+
+    function abrirCarrinho() {
+      const container = document.getElementById('cart-items');
+      const totalEl = document.getElementById('cart-total');
+      
+      if (carrinho.length === 0) {
+        container.innerHTML = '<p style="color:var(--muted)">Seu carrinho está vazio.</p>';
+        totalEl.innerText = 'R$ 0,00';
+      } else {
+        container.innerHTML = carrinho.map(item => `
+          <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;">
+            <span>${item.nome}</span>
+            <strong>R$ ${Number(item.preco).toFixed(2)}</strong>
+          </div>
+        `).join('');
+
+        const total = carrinho.reduce((sum, item) => sum + item.preco, 0);
+        totalEl.innerText = `R$ ${total.toFixed(2)}`;
+      }
+      document.getElementById('cart-modal').classList.add('active');
+    }
+
+    function fecharCarrinho() {
+      document.getElementById('cart-modal').classList.remove('active');
+    }
+
+    async function finalizarPedido() {
+      const nome = document.getElementById('c-nome').value;
+      const email = document.getElementById('c-email').value;
+      const tel = document.getElementById('c-tel').value;
+
+      if (!nome || !email) return alert("Por favor, preencha seu nome e e-mail.");
+
+      if (db) {
+        // 1. Cadastra o cliente/lead no Supabase
+        const { error: errCliente } = await db.from('clientes').insert([{ nome, email, tel }]);
+        if (errCliente) return alert("Erro ao registrar cliente: " + errCliente.message);
+
+        // 2. Abate do estoque no Supabase
+        for (const item of carrinho) {
+          const prod = produtos.find(p => p.id === item.id);
+          if (prod) {
+            const novoEstoque = Math.max(0, prod.estoque - 1);
+            await db.from('produtos').update({ estoque: novoEstoque }).eq('id', item.id);
+          }
+        }
+
+        alert("Pedido efetuado com sucesso!");
+      } else {
+        clientes.unshift({ nome, email, tel, created_at: new Date() });
+        carrinho.forEach(item => {
+          const prod = produtos.find(p => p.id === item.id);
+          if (prod) prod.estoque = Math.max(0, prod.estoque - 1);
+        });
+        renderizarProdutos();
+        renderizarTabelaAdmin();
+        renderizarClientesAdmin();
+        alert("Pedido simulado com sucesso no modo offline!");
+      }
+
+      carrinho = [];
+      atualizarContadorCarrinho();
+      fecharCarrinho();
+    }
+  </script>
+</body>
+</html>
